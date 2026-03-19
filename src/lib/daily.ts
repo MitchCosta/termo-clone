@@ -1,4 +1,4 @@
-import { WORDS_PT_5 } from "@/lib/words-pt";
+import { WORDS_PT_5 } from "@/lib/words-pt-new";
 
 export function todayKeyUTC(): string {
   const d = new Date();
