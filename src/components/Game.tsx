@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getDailyAnswer, todayKeyUTC } from "@/lib/daily";
 import { evaluateGuess, normalizeInput, type TileState } from "@/lib/evalGuess";
 import { randomChoice } from "@/lib/random";
-import { WORDS_PT_5 } from "@/lib/words-pt";
+import { WORDS_PT_5 } from "@/lib/words-pt-new";
 
 const WORD_LEN = 5;
 const MAX_GUESSES = 6;
