@@ -5,13 +5,14 @@ import { getDailyAnswer, todayKeyUTC } from "@/lib/daily";
 import { evaluateGuess, normalizeInput, type TileState } from "@/lib/evalGuess";
 import { randomChoice } from "@/lib/random";
 import { WORDS_PT_5 } from "@/lib/words-pt-new";
+import { useSearchParams } from "next/navigation";
 
 const WORD_LEN = 5;
 const MAX_GUESSES = 6;
 
 type Row = { guess: string; states: TileState[] | null; };
 type Mode = "daily" | "unlimited";
-type Persisted = { key: string; mode: Mode; answer: string; rows: Row[]; current: string; done: boolean; won: boolean; };
+type Persisted = { key: string; mode: Mode; answerOriginal: string; rows: Row[]; current: string; done: boolean; won: boolean; };
 
 function storageKey(mode: Mode) { return `termo-clone:v1:${mode}`; }
 function emptyRows(): Row[] { return Array.from({ length: MAX_GUESSES }, () => ({ guess: "", states: null })); }
@@ -28,46 +29,82 @@ export default function Game() {
   const dailyKey = useMemo(() => todayKeyUTC(), []);
   const [mode, setMode] = useState<Mode>("daily");
   const [gameKey, setGameKey] = useState<string>(dailyKey);
-  const [answer, setAnswer] = useState<string>(() => getDailyAnswer(WORDS_PT_5));
+  const [answerOriginal, setAnswerOriginal] = useState<string>(() => getDailyAnswer(WORDS_PT_5));
+  const answer = useMemo(() => normalizeInput(answerOriginal), [answerOriginal]);
   const [rows, setRows] = useState<Row[]>(() => emptyRows());
   const [current, setCurrent] = useState("");
   const [done, setDone] = useState(false);
   const [won, setWon] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const hiddenInputRef = useRef<HTMLInputElement | null>(null);
+  const wordSetNormalized = useMemo(() => new Set(WORDS_PT_5.map((w) => normalizeInput(w))), []);
+  const searchParams = useSearchParams();
+  const testAnswerParam = searchParams.get("testAnswer");
 
   function showToast(msg: string) { setToast(msg); window.setTimeout(() => setToast(null), 1800); }
 
   function startDaily() {
     const k = todayKeyUTC();
     setMode("daily"); setGameKey(k);
-    setAnswer(getDailyAnswer(WORDS_PT_5, k));
+    setAnswerOriginal(getDailyAnswer(WORDS_PT_5, k));
     setRows(emptyRows()); setCurrent(""); setDone(false); setWon(false);
   }
 
   function startUnlimitedNewGame() {
     const k = newUnlimitedKey();
     setMode("unlimited"); setGameKey(k);
-    setAnswer(randomChoice(WORDS_PT_5).toUpperCase());
+    setAnswerOriginal(randomChoice(WORDS_PT_5).toUpperCase());
     setRows(emptyRows()); setCurrent(""); setDone(false); setWon(false);
   }
 
+  function startForcedAnswer(original: string) {
+    const normalized = normalizeInput(original);
+    if (normalized.length !== WORD_LEN) {
+      showToast("testAnswer precisa de 5 letras");
+      return;
+    }
+    if (!wordSetNormalized.has(normalized)) {
+      showToast("testAnswer não está na lista");
+      return;
+    }
+
+    // Use "unlimited" mode so it doesn't overwrite daily progress.
+    setMode("unlimited");
+    setGameKey(`test-${normalized}-${Date.now()}`);
+    setAnswerOriginal(original.toUpperCase());
+    setRows(emptyRows());
+    setCurrent("");
+    setDone(false);
+    setWon(false);
+  }
+
   useEffect(() => {
+    if (testAnswerParam) {
+      try {
+        startForcedAnswer(testAnswerParam);
+        return;
+      } catch {
+        // fall through to normal restore
+      }
+    }
+
     try {
       const rawDaily = localStorage.getItem(storageKey("daily"));
       if (rawDaily) {
-        const p = JSON.parse(rawDaily) as Persisted;
+        const p = JSON.parse(rawDaily) as Persisted | (Persisted & { answer?: string });
         if (p.mode === "daily" && p.key === dailyKey) {
-          setMode("daily"); setGameKey(p.key); setAnswer(p.answer);
+          const restoredAnswerOriginal = (p as any).answerOriginal ?? (p as any).answer;
+          setMode("daily"); setGameKey(p.key); setAnswerOriginal(restoredAnswerOriginal);
           setRows(p.rows); setCurrent(p.current); setDone(p.done); setWon(p.won);
           return;
         }
       }
       const rawUnl = localStorage.getItem(storageKey("unlimited"));
       if (rawUnl) {
-        const p = JSON.parse(rawUnl) as Persisted;
+        const p = JSON.parse(rawUnl) as Persisted | (Persisted & { answer?: string });
         if (p.mode === "unlimited") {
-          setMode("unlimited"); setGameKey(p.key); setAnswer(p.answer);
+          const restoredAnswerOriginal = (p as any).answerOriginal ?? (p as any).answer;
+          setMode("unlimited"); setGameKey(p.key); setAnswerOriginal(restoredAnswerOriginal);
           setRows(p.rows); setCurrent(p.current); setDone(p.done); setWon(p.won);
           return;
         }
@@ -75,12 +112,12 @@ export default function Game() {
       startDaily();
     } catch { startDaily(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [testAnswerParam]);
 
   useEffect(() => {
-    const data: Persisted = { mode, key: gameKey, answer, rows, current, done, won };
+    const data: Persisted = { mode, key: gameKey, answerOriginal, rows, current, done, won };
     try { localStorage.setItem(storageKey(mode), JSON.stringify(data)); } catch {}
-  }, [mode, gameKey, answer, rows, current, done, won]);
+  }, [mode, gameKey, answerOriginal, rows, current, done, won]);
 
   function onTypeLetter(ch: string) { if (!done && current.length < WORD_LEN) setCurrent(c => (c + ch).slice(0, WORD_LEN)); }
   function onBackspace() { if (!done) setCurrent(c => c.slice(0, -1)); }
@@ -89,7 +126,7 @@ export default function Game() {
     if (done) return;
     const guess = normalizeInput(current);
     if (guess.length !== WORD_LEN) return showToast("Precisa de 5 letras");
-    if (!WORDS_PT_5.includes(guess.toLowerCase() as any)) return showToast("Palavra não está na lista (demo)");
+    if (!wordSetNormalized.has(guess)) return showToast("Palavra não está na lista (demo)");
 
     setRows(prev => {
       const next = [...prev];
@@ -102,7 +139,7 @@ export default function Game() {
 
     if (guess === answer) { setDone(true); setWon(true); return showToast("Boa!"); }
     const used = rows.filter(r => r.states !== null).length + 1;
-    if (used >= MAX_GUESSES) { setDone(true); setWon(false); showToast(`Acabou — era ${answer}`); }
+    if (used >= MAX_GUESSES) { setDone(true); setWon(false); showToast(`Acabou — era ${answerOriginal}`); }
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -175,7 +212,7 @@ export default function Game() {
       {done && (
         <div className="w-full rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">
           <div className="font-semibold">{won ? "You won." : "Game over."}</div>
-          <div className="text-zinc-400">Answer: {answer}</div>
+          <div className="text-zinc-400">Answer: {answerOriginal}</div>
         </div>
       )}
 

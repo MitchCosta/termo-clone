@@ -10,7 +10,7 @@ export default function Home() {
       <Game />
 
       <footer className="pt-2 text-xs text-zinc-500">
-        Modes: daily + unlimited. Word list: <code>src/lib/words-pt.ts</code>
+        Modes: daily + unlimited. Word list: <code>src/lib/words-pt-new.ts</code>
       </footer>
     </main>
   );

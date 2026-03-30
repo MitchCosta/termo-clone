@@ -1,7 +1,13 @@
 export type TileState = "absent" | "present" | "correct";
 
+function stripDiacritics(input: string): string {
+  // NFD splits base letters from combining marks (e.g. "Ã" -> "A" + "◌̃")
+  // Removing combining marks yields ASCII-friendly letters for gameplay.
+  return input.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 export function normalizeInput(raw: string): string {
-  return raw.toUpperCase().replace(/[^A-Z]/g, "");
+  return stripDiacritics(raw).toUpperCase().replace(/[^A-Z]/g, "");
 }
 
 export function evaluateGuess(guess: string, answer: string): TileState[] {
