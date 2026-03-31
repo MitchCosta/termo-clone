@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Game from "@/components/Game";
 
 export default function Home() {
@@ -7,7 +8,9 @@ export default function Home() {
         <h1 className="text-xl font-semibold tracking-tight">Termo Clone</h1>
       </header>
 
-      <Game />
+      <Suspense fallback={<div className="text-sm text-zinc-500">Carregando…</div>}>
+        <Game />
+      </Suspense>
 
       <footer className="pt-2 text-xs text-zinc-500">
         Modes: daily + unlimited. Word list: <code>src/lib/words-pt-new.ts</code>

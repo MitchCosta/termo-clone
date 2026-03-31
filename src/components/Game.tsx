@@ -41,6 +41,24 @@ export default function Game() {
   const searchParams = useSearchParams();
   const testAnswerParam = searchParams.get("testAnswer");
 
+  useEffect(() => {
+    // #region agent log
+    fetch("http://127.0.0.1:7433/ingest/2199d2ee-5fc6-424c-9806-4832b8f6e1e0", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "1f904a" },
+      body: JSON.stringify({
+        sessionId: "1f904a",
+        location: "Game.tsx:mount",
+        message: "game_client_mounted",
+        data: { testAnswer: testAnswerParam ?? null },
+        timestamp: Date.now(),
+        hypothesisId: "H2",
+        runId: "post-suspense",
+      }),
+    }).catch(() => {});
+    // #endregion
+  }, [testAnswerParam]);
+
   function showToast(msg: string) { setToast(msg); window.setTimeout(() => setToast(null), 1800); }
 
   function startDaily() {
